@@ -45,7 +45,7 @@ def checksum(packet):
 
 
 def receiveOnePing(icmpSocket, ID, timeout, timeSent):
-    timeLeft = timeout #用来记录在执行select函数等待ICMP回复期间剩余的时间
+    timeLeft = timeout  # 用来记录在执行select函数等待ICMP回复期间剩余的时间
 
     while True:
         startedSelect = time.time()
@@ -63,15 +63,25 @@ def receiveOnePing(icmpSocket, ID, timeout, timeSent):
             "BBHHH", icmpHeader
         )
 
-        if pID == ID:#确认这个回复是对应之前的请求。
+        if pID == ID:  # Confirm that this reply corresponds to the previous request
             timeSent = struct.unpack("d", recPacket[28:])[0]
             delay = (timeReceived - timeSent) * 1000
-            return f"Reply from {addr[0]}: bytes=64 time={delay:.2f}ms"
+
+            # Handle different types of ICMP error codes
+            if type == 0:  # Echo Reply
+                return f"Reply from {addr[0]}: bytes=64 time={delay:.2f}ms"
+            elif type == 3 and code == 0:  # Destination Network Unreachable
+                return "Destination Network Unreachable"
+            elif type == 3 and code == 1:  # Destination Host Unreachable
+                return "Destination Host Unreachable"
+            else:
+                return f"ICMP Error: Type={type}, Code={code}"
 
         timeLeft = timeLeft - howLongInSelect
 
         if timeLeft <= 0:
             return "Request timed out."
+
 
 
 def sendOnePing(icmpSocket, destAddr, ID):
@@ -86,7 +96,7 @@ def sendOnePing(icmpSocket, destAddr, ID):
 
     # Get the right checksum, and put in the header
     if sys.platform == 'darwin':
-        myChecksum = socket.htons(myChecksum) & 0xffff#把主机字节序转换为网络字节序
+        myChecksum = socket.htons(myChecksum) & 0xffff#Convert host byte order to network byte order
     else:
         myChecksum = socket.htons(myChecksum)
 
@@ -100,28 +110,66 @@ def sendOnePing(icmpSocket, destAddr, ID):
 
 def doOnePing(destAddr, timeout):
     icmp = socket.getprotobyname("icmp")
-    # SOCK_RAW is a powerful socket type. For more details:   http://sock-raw.org/papers/sock_raw
     icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
 
-    myID = os.getpid() & 0xFFFF  # 获取当前进程的pid
+    myID = os.getpid() & 0xFFFF  # Get the pid of the current process
     sendOnePing(icmpSocket, destAddr, myID)
     delay = receiveOnePing(icmpSocket, myID, timeout, time.time())
 
     icmpSocket.close()
     return delay
 
-def ping(host, timeout=1,count=4):
+
+def ping(host, count=4, timeout=1):
     dest = socket.gethostbyname(host)
     print(f"Pinging {host} [{dest}] with 64 bytes of data:")
 
-    i=0
-    while i<count :
+    delays = []  # List for storing delays
+    sent_packets = 0
+    received_packets = 0
+
+    i = 0
+    while i < count:
         delay = doOnePing(dest, timeout)
         print(delay)
-        time.sleep(1)  #每秒请求一次
-        i+=1
-# Taking an IP or host name as an argument
-user_input=input("Please input <host or ip>: ")
 
-#you can access the by ip or host
-ping(user_input)
+        if delay != "Request timed out.":
+            delays.append(float(delay.split('=')[-1][:-2]))  # Extract delay value and add to list
+            received_packets += 1
+        else:
+            print("Packet loss: Request timed out.")
+        sent_packets += 1
+
+        time.sleep(1)  # Requested once per second
+        i += 1
+
+    # Calculate minimum, average and maximum delays after stopping measurement
+    if delays:
+        min_delay = min(delays)
+        max_delay = max(delays)
+        avg_delay = sum(delays) / len(delays)
+        print(f"Minimum Delay: {min_delay:.2f}ms")
+        print(f"Average Delay: {avg_delay:.2f}ms")
+        print(f"Maximum Delay: {max_delay:.2f}ms")
+
+    # Calculate packet loss rate
+    packet_loss = ((sent_packets - received_packets) / sent_packets) * 100
+    print(f"Packet Loss: {packet_loss:.2f}% ({sent_packets - received_packets}/{sent_packets})")
+
+
+# Taking an IP or host name as an argument
+user_input = input("Please input <host or ip>: ")
+count_input = input("Please input measurement count (default is 4): ")
+timeout_input = input("Please input timeout in seconds (default is 1): ")
+
+if count_input.isdigit() and timeout_input.isdigit():
+    ping(user_input, count=int(count_input), timeout=int(timeout_input))
+elif count_input.isdigit():
+    ping(user_input, count=int(count_input))
+elif timeout_input.isdigit():
+    ping(user_input, timeout=int(timeout_input))
+else:
+    ping(user_input)
+
+
+
