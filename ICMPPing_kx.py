@@ -123,5 +123,5 @@ def ping(host, timeout=1,count=4):
 # Taking an IP or host name as an argument
 user_input=input("Please input <host or ip>: ")
 
-
+#you can access the by ip or host
 ping(user_input)
