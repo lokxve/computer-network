@@ -57,14 +57,14 @@ def build_packet():
 
 
 def get_route(hostname):
-    print(f"通过最多 {MAX_HOPS} 个跃点跟踪")
+    print(f"Tracking via up to {MAX_HOPS} hops")
     ip_address = socket.gethostbyname(hostname)
-    print(f"到 {hostname} [{ip_address}] 的路由:\n")
+    print(f"Route to {hostname} [{ip_address}] :\n")
     time_left = TIMEOUT
 
-    results = []  # 存储结果
-
     for ttl in range(1, MAX_HOPS):
+        results_for_ttl = []
+        save_results = []
         for tries in range(TRIES):
             destination_ip = socket.gethostbyname(hostname)
             icmp_name = socket.getprotobyname('icmp')
@@ -79,30 +79,64 @@ def get_route(hostname):
                 if_got = select.select([icmp_socket], [], [], TIMEOUT)  # 检测是否收到报文
                 time_during_receive = time.time() - time_begin_receive
                 if not if_got[0]:
-                    print("  %d     *        Request timed out." % ttl)
-
+                    result = ("*", )
+                    results_for_ttl.append(result)
+                    save_results.append(result)
+                    if len(results_for_ttl) == TRIES:
+                        print(f" {ttl:<3}  ", end="")
+                        for r in results_for_ttl:
+                            print(f"{r[0]:>3}       ", end="")
+                        print("Request timeout")
+                        # 清空当前 TTL 的结果列表，准备处理下一个 TTL
+                        results_for_ttl.clear()
                 rec_packet, addr = (icmp_socket.recvfrom(1024))
                 time_received = time.time()
                 time_left = time_left - time_during_receive
                 if time_left <= 0:
-                    print("  %d     *        Request timed out." % ttl)
+                    result = ("*", addr[0])
+                    results_for_ttl.append(result)
+                    save_results.append(result)
+                    if len(results_for_ttl) == TRIES:
+                        print(f" {ttl:<3}  ", end="")
+                        for r in results_for_ttl:
+                            print(f"{r[0]:>3}       ", end="")
+                        print(r[-1])
+                        # 清空当前 TTL 的结果列表，准备处理下一个 TTL
+                        results_for_ttl.clear()
             except timeout:
                 continue
             else:
-                byte_in_double = struct.calcsize("!d")  # 确定double在网络字节序下所占的字节数
-                time_sent = struct.unpack("!d", rec_packet[28: 28 + byte_in_double])[0]
                 rec_header = rec_packet[20:28]
                 types, _, _, _, _ = struct.unpack(big_end_sequence, rec_header)
-                result = (ttl, time_received - t * 1000, addr[0])  # 元组第一个元素是ip地址，第二个是端口
-                results.append(result)
-
+                result = (ttl, (time_received - t) * 1000, addr[0])  # 元组第一个元素是ip地址，第二个是端口
+                results_for_ttl.append(result)
+                save_results.append(result)
                 if types == 11:
-                    print("  %d    rtt=%.0f ms    %s" % (ttl, (time_received - t) * 1000, addr[0]))
+                    if len(results_for_ttl) == TRIES:
+                        print(f" {ttl:<3}  ", end="")
+                        for r in results_for_ttl:
+                            print(f"{int(r[1]):>3} ms    ", end="")
+                        print(r[-1])
+                        # 清空当前 TTL 的结果列表，准备处理下一个 TTL
+                        results_for_ttl.clear()
                 elif types == 3:
-                    print("  %d    rtt=%.0f ms    %s" % (ttl, (time_received - t) * 1000, addr[0]))
+                    if len(results_for_ttl) == TRIES:
+                        print(f" {ttl:<3}  ", end="")
+                        for r in results_for_ttl:
+                            print(f"{int(r[1]):>3} ms    ", end="")
+                        print(r[-1])
+                        # 清空当前 TTL 的结果列表，准备处理下一个 TTL
+                        results_for_ttl.clear()
                 elif types == 0:
-                    print("  %d    rtt=%.0f ms    %s" % (ttl, (time_received - time_sent) * 1000, addr[0]))
-                    return results
+                    if len(results_for_ttl) == TRIES:
+                        print(f" {ttl:<3}  ", end="")
+                        for r in results_for_ttl:
+                            print(f"{int(r[1]):>3} ms    ", end="")
+                        print(r[-1]+"\n")
+                        # 清空当前 TTL 的结果列表，准备处理下一个 TTL
+                        results_for_ttl.clear()
+                        print("Traceroute finished")
+                        return save_results
                 else:
                     print("error")
                 continue
