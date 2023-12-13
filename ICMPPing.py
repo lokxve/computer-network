@@ -96,11 +96,9 @@ def sendOnePing(icmpSocket, destAddr, ID):
 
     # Get the right checksum, and put in the header
     if sys.platform == 'darwin':
-        myChecksum = socket.htons(myChecksum) & 0xffff#Convert host byte order to network byte order
+        myChecksum = socket.htons(myChecksum) & 0xffff  # Convert host byte order to network byte order
     else:
         myChecksum = socket.htons(myChecksum)
-
-
 
     header = struct.pack("BBHHH", ICMP_ECHO_REQUEST, 0,  myChecksum, ID, 1)
     packet = header + data
