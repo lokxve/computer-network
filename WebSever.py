@@ -66,6 +66,6 @@ def start_server(host, port):
         client_socket.close()
 
 if __name__ == "__main__":
-    host = input("Input the host you want: ")
-    port = int(input("Input the port you want: "))
+    host = input("Input the host to server: ")
+    port = int(input("Input the port to server: "))
     start_server(host, port)

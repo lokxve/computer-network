@@ -120,7 +120,6 @@ def get_route(hostname):
                             else:
                                 print(f"{r[0]:>3}       ", end="")
                         print(addr[0])
-                        # 清空当前 TTL 的结果列表，准备处理下一个 TTL
                         results_for_ttl.clear()
             except timeout:
                 continue
@@ -140,7 +139,6 @@ def get_route(hostname):
                                 else:
                                     print(f"{r[0]:>3}       ", end="")
                             print(addr[0])
-                            # 清空当前 TTL 的结果列表，准备处理下一个 TTL
                             results_for_ttl.clear()
                     elif types == 3:
                         if len(results_for_ttl) == TRIES:
@@ -151,7 +149,6 @@ def get_route(hostname):
                                 else:
                                     print(f"{r[0]:>3}       ", end="")
                             print(addr[0])
-                            # 清空当前 TTL 的结果列表，准备处理下一个 TTL
                             results_for_ttl.clear()
                     elif types == 0:
                         if len(results_for_ttl) == TRIES:
@@ -162,7 +159,6 @@ def get_route(hostname):
                                 else:
                                     print(f"{r[0]:>3}       ", end="")
                             print(addr[0])
-                            # 清空当前 TTL 的结果列表，准备处理下一个 TTL
                             results_for_ttl.clear()
                             print("\nTraceroute finished")
                             return save_results
