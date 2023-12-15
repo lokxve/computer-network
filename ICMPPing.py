@@ -21,17 +21,17 @@ ICMP_ECHO_REQUEST = 8  # ICMP type code for echo request messages
 
 def checksum(packet):
     # Calculate ICMP packet checksum
-    countTo = (len(packet) // 2) * 2
+    count_to = (len(packet) // 2) * 2
     count = 0
     csum = 0
 
-    while count < countTo:
-        thisVal = packet[count + 1] * 256 + packet[count]
-        csum = csum + thisVal
+    while count < count_to:
+        this_val = packet[count + 1] * 256 + packet[count]
+        csum = csum + this_val
         csum = csum & 0xffffffff
         count = count + 2
 
-    if countTo < len(packet):
+    if count_to < len(packet):
         csum = csum + packet[len(packet) - 1]
         csum = csum & 0xffffffff
 
@@ -44,28 +44,26 @@ def checksum(packet):
     return answer
 
 
-def receiveOnePing(icmpSocket, ID, timeout, timeSent):
-    timeLeft = timeout  # 用来记录在执行select函数等待ICMP回复期间剩余的时间
+def receiveOnePing(icmp_socket, ID, timeout):
+    time_left = timeout  # 用来记录在执行select函数等待ICMP回复期间剩余的时间
 
     while True:
-        startedSelect = time.time()
-        whatReady = select.select([icmpSocket], [], [], timeLeft)
-        howLongInSelect = (time.time() - startedSelect)
+        started_select = time.time()
+        what_ready = select.select([icmp_socket], [], [], time_left)
+        how_long_in_select = (time.time() - started_select)
 
-        if whatReady[0] == []:  # Timeout
+        if not what_ready[0]:  # Timeout
             return "Request timed out."
 
-        timeReceived = time.time()
-        recPacket, addr = icmpSocket.recvfrom(1024)
+        time_received = time.time()
+        rec_packet, addr = icmp_socket.recvfrom(1024)
 
-        icmpHeader = recPacket[20:28]
-        type, code, checksum, pID, sequence = struct.unpack(
-            "BBHHH", icmpHeader
-        )
+        icmp_header = rec_packet[20:28]
+        type, code, my_checksum, p_id, sequence = struct.unpack("!BBHHH", icmp_header)
 
-        if pID == ID:  # Confirm that this reply corresponds to the previous request
-            timeSent = struct.unpack("d", recPacket[28:])[0]
-            delay = (timeReceived - timeSent) * 1000
+        if p_id == ID:  # Confirm that this reply corresponds to the previous request
+            time_sent = struct.unpack("d", rec_packet[28:])[0]
+            delay = (time_received - time_sent) * 1000
 
             # Handle different types of ICMP error codes
             if type == 0:  # Echo Reply
@@ -77,50 +75,44 @@ def receiveOnePing(icmpSocket, ID, timeout, timeSent):
             else:
                 return f"ICMP Error: Type={type}, Code={code}"
 
-        timeLeft = timeLeft - howLongInSelect
+        time_left = time_left - how_long_in_select
 
-        if timeLeft <= 0:
+        if time_left <= 0:
             return "Request timed out."
 
 
 
-def sendOnePing(icmpSocket, destAddr, ID):
+def sendOnePing(icmp_socket, des_addr, ID):
     # Header is type (8), code (8), checksum (16), id (16), sequence (16)
-    myChecksum = 0
+    my_checksum = 0
     # Make a dummy header with a 0 checksum
-    header = struct.pack("BBHHH", ICMP_ECHO_REQUEST, 0, myChecksum, ID, 1)
+    header = struct.pack("!BBHHH", ICMP_ECHO_REQUEST, 0, my_checksum, ID, 1)
     data = struct.pack("d", time.time())
 
     # Calculate the checksum on the data and the dummy header.
-    myChecksum = checksum(header + data)
+    my_checksum = checksum(header + data)
 
-    # Get the right checksum, and put in the header
-    if sys.platform == 'darwin':
-        myChecksum = socket.htons(myChecksum) & 0xffff  # Convert host byte order to network byte order
-    else:
-        myChecksum = socket.htons(myChecksum)
-
-    header = struct.pack("BBHHH", ICMP_ECHO_REQUEST, 0,  myChecksum, ID, 1)
+    header = struct.pack("!BBHHH", ICMP_ECHO_REQUEST, 0, my_checksum, ID, 1)
     packet = header + data
 
-    icmpSocket.sendto(packet, (destAddr, 1))
+    icmp_socket.sendto(packet, (des_addr, 1))
 
 
-def doOnePing(destAddr, timeout):
+def doOnePing(des_addr, timeout):
     icmp = socket.getprotobyname("icmp")
-    icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
+    icmp_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
 
-    myID = os.getpid() & 0xFFFF  # Get the pid of the current process
-    sendOnePing(icmpSocket, destAddr, myID)
-    delay = receiveOnePing(icmpSocket, myID, timeout, time.time())
+    my_id = os.getpid() & 0xFFFF  # Get the pid of the current process
+    sendOnePing(icmp_socket, des_addr, my_id)
+    delay = receiveOnePing(icmp_socket, my_id, timeout)
 
-    icmpSocket.close()
+    icmp_socket.close()
     return delay
 
 
 def ping(host, count=4, timeout=1):
-    dest = socket.gethostbyname(host)
-    print(f"Pinging {host} [{dest}] with 64 bytes of data:")
+    des = socket.gethostbyname(host)
+    print(f"Pinging {host} [{des}] with 64 bytes of data:")
 
     delays = []  # List for storing delays
     sent_packets = 0
@@ -128,7 +120,7 @@ def ping(host, count=4, timeout=1):
 
     i = 0
     while i < count:
-        delay = doOnePing(dest, timeout)
+        delay = doOnePing(des, timeout)
         print(delay)
 
         if delay != "Request timed out.":
